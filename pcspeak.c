@@ -22,74 +22,27 @@
 #include "config.h"
 #endif
 
+#include <linux/kd.h>
+#include <sys/ioctl.h>
+#include <fcntl.h>
+
 #include "php.h"
 #include "php_ini.h"
 #include "ext/standard/info.h"
 #include "php_pcspeak.h"
 
-/* If you declare any globals in php_pcspeak.h uncomment this:
+/* Document SYS_CLOCK_RATE */
+#define SYS_CLOCK_RATE     1193180
+
 ZEND_DECLARE_MODULE_GLOBALS(pcspeak)
-*/
 
 /* True global resources - no need for thread safety here */
 static int le_pcspeak;
-
-/* {{{ PHP_INI
- */
-/* Remove comments and fill if you need to have entries in php.ini
-PHP_INI_BEGIN()
-    STD_PHP_INI_ENTRY("pcspeak.global_value",      "42", PHP_INI_ALL, OnUpdateLong, global_value, zend_pcspeak_globals, pcspeak_globals)
-    STD_PHP_INI_ENTRY("pcspeak.global_string", "foobar", PHP_INI_ALL, OnUpdateString, global_string, zend_pcspeak_globals, pcspeak_globals)
-PHP_INI_END()
-*/
-/* }}} */
-
-/* Remove the following function when you have successfully modified config.m4
-   so that your module can be compiled into PHP, it exists only for testing
-   purposes. */
-
-/* Every user-visible function in PHP should document itself in the source */
-/* {{{ proto string confirm_pcspeak_compiled(string arg)
-   Return a string to confirm that the module is compiled in */
-PHP_FUNCTION(confirm_pcspeak_compiled)
-{
-	char *arg = NULL;
-	int arg_len, len;
-	char *strg;
-
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s", &arg, &arg_len) == FAILURE) {
-		return;
-	}
-
-	len = spprintf(&strg, 0, "Congratulations! You have successfully modified ext/%.78s/config.m4. Module %.78s is now compiled into PHP.", "pcspeak", arg);
-	RETURN_STRINGL(strg, len, 0);
-}
-/* }}} */
-/* The previous line is meant for vim and emacs, so it can correctly fold and 
-   unfold functions in source code. See the corresponding marks just before 
-   function definition, where the functions purpose is also documented. Please 
-   follow this convention for the convenience of others editing your code.
-*/
-
-
-/* {{{ php_pcspeak_init_globals
- */
-/* Uncomment this function if you have INI entries
-static void php_pcspeak_init_globals(zend_pcspeak_globals *pcspeak_globals)
-{
-	pcspeak_globals->global_value = 0;
-	pcspeak_globals->global_string = NULL;
-}
-*/
-/* }}} */
 
 /* {{{ PHP_MINIT_FUNCTION
  */
 PHP_MINIT_FUNCTION(pcspeak)
 {
-	/* If you have INI entries, uncomment these lines 
-	REGISTER_INI_ENTRIES();
-	*/
 	return SUCCESS;
 }
 /* }}} */
@@ -101,24 +54,6 @@ PHP_MSHUTDOWN_FUNCTION(pcspeak)
 	/* uncomment this line if you have INI entries
 	UNREGISTER_INI_ENTRIES();
 	*/
-	return SUCCESS;
-}
-/* }}} */
-
-/* Remove if there's nothing to do at request start */
-/* {{{ PHP_RINIT_FUNCTION
- */
-PHP_RINIT_FUNCTION(pcspeak)
-{
-	return SUCCESS;
-}
-/* }}} */
-
-/* Remove if there's nothing to do at request end */
-/* {{{ PHP_RSHUTDOWN_FUNCTION
- */
-PHP_RSHUTDOWN_FUNCTION(pcspeak)
-{
 	return SUCCESS;
 }
 /* }}} */
@@ -137,13 +72,99 @@ PHP_MINFO_FUNCTION(pcspeak)
 }
 /* }}} */
 
+/* {{{ proto void pcspeak_open(char* ttyname)
+   { */
+PHP_FUNCTION(pcspeak_open)
+{
+	int argc = ZEND_NUM_ARGS();
+	char* ttyname = NULL;
+	int ttyname_length = 0;
+
+	if (zend_parse_parameters(argc TSRMLS_CC, "s", &ttyname, &ttyname_length) != SUCCESS)
+		return;
+
+	if ((PCSPEAK_G(device) = open(ttyname, O_WRONLY)) == -1) {
+	 	zend_error(E_ERROR, "Unable to open device for writing");
+		RETURN_FALSE;
+	}
+
+	RETURN_TRUE;
+}
+/* }}} */
+
+/* {{{ proto void pcspeak_close()
+   { */
+PHP_FUNCTION(pcspeak_close)
+{
+	if (PCSPEAK_G(device) != -1) {
+		close(PCSPEAK_G(device));
+	}
+}
+/* }}} */
+
+/* {{{ proto void pcspeak_sustain()
+   { */
+PHP_FUNCTION(pcspeak_sustain)
+{
+	float freq = PCSPEAK_G(frequency);
+	int dev = PCSPEAK_G(device);
+
+	int rounded_freq = (freq >= 0) ? (int)(freq + 0.5) : (int)(freq - 0.5);
+
+	ioctl(dev, KIOCSOUND, SYS_CLOCK_RATE/rounded_freq);
+}
+/* }}} */
+
+/* {{{ proto void pcspeak_release()
+   { */
+PHP_FUNCTION(pcspeak_release)
+{
+	int dev = PCSPEAK_G(device);
+
+	ioctl(dev, KIOCSOUND, 0);
+}
+/* }}} */
+
+/* {{{ proto void pcspeak_tune(int octave, int note)
+   { */
+PHP_FUNCTION(pcspeak_tune)
+{
+	int argc = ZEND_NUM_ARGS();
+	int octave;
+	int note;
+
+	if (zend_parse_parameters(argc TSRMLS_CC, "ll", &octave, &note) != SUCCESS)
+		return;
+
+	// calculate steps from A4 in 4th ocatave
+	int steps = note - 9;
+
+	// calculate steps for octaves < 4 >
+	steps = ((octave - 4) * 12) + steps;
+
+	// Define harmonic tuning ratio on equal tempered scale
+	// See http://www.phy.mtu.edu/~suits/scales.html
+	// float etr = 1;       // unison
+	float etr = 1.05946;   // minor
+	// float etr = 1.12246; // major
+	// float etr = 2;       // octave
+
+	// bias A4 to 440Hz
+	PCSPEAK_G(frequency) = 440 * powf(etr, steps);
+}
+/* }}} */
+
 /* {{{ pcspeak_functions[]
  *
  * Every user visible function must have an entry in pcspeak_functions[].
  */
 const zend_function_entry pcspeak_functions[] = {
-	PHP_FE(confirm_pcspeak_compiled,	NULL)		/* For testing, remove later. */
-	PHP_FE_END	/* Must be the last line in pcspeak_functions[] */
+	PHP_FE(pcspeak_open, NULL)
+	PHP_FE(pcspeak_close, NULL)
+	PHP_FE(pcspeak_sustain, NULL)
+	PHP_FE(pcspeak_release, NULL)
+	PHP_FE(pcspeak_tune, NULL)
+	PHP_FE_END
 };
 /* }}} */
 
@@ -155,8 +176,8 @@ zend_module_entry pcspeak_module_entry = {
 	pcspeak_functions,
 	PHP_MINIT(pcspeak),
 	PHP_MSHUTDOWN(pcspeak),
-	PHP_RINIT(pcspeak),		/* Replace with NULL if there's nothing to do at request start */
-	PHP_RSHUTDOWN(pcspeak),	/* Replace with NULL if there's nothing to do at request end */
+	NULL,
+	NULL,
 	PHP_MINFO(pcspeak),
 	PHP_PCSPEAK_VERSION,
 	STANDARD_MODULE_PROPERTIES

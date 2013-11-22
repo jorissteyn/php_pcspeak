@@ -24,7 +24,7 @@
 extern zend_module_entry pcspeak_module_entry;
 #define phpext_pcspeak_ptr &pcspeak_module_entry
 
-#define PHP_PCSPEAK_VERSION "0.1.0" /* Replace with version number for your extension */
+#define PHP_PCSPEAK_VERSION "0.1.0"
 
 #ifdef PHP_WIN32
 #	define PHP_PCSPEAK_API __declspec(dllexport)
@@ -38,22 +38,17 @@ extern zend_module_entry pcspeak_module_entry;
 #include "TSRM.h"
 #endif
 
-/* 
-  	Declare any global variables you may need between the BEGIN
-	and END macros here:     
-
 ZEND_BEGIN_MODULE_GLOBALS(pcspeak)
-	long  global_value;
-	char *global_string;
+	int device;
+	float frequency;
 ZEND_END_MODULE_GLOBALS(pcspeak)
-*/
 
-/* In every utility function you add that needs to use variables 
-   in php_pcspeak_globals, call TSRMLS_FETCH(); after declaring other 
+/* In every utility function you add that needs to use variables
+   in php_pcspeak_globals, call TSRMLS_FETCH(); after declaring other
    variables used by that function, or better yet, pass in TSRMLS_CC
    after the last function argument and declare your utility function
    with TSRMLS_DC after the last declared argument.  Always refer to
-   the globals in your function as PCSPEAK_G(variable).  You are 
+   the globals in your function as PCSPEAK_G(variable).  You are
    encouraged to rename these macros something shorter, see
    examples in any other php module directory.
 */

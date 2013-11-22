@@ -13,9 +13,8 @@ dnl [  --with-pcspeak             Include pcspeak support])
 
 dnl Otherwise use enable:
 
-dnl PHP_ARG_ENABLE(pcspeak, whether to enable pcspeak support,
-dnl Make sure that the comment is aligned:
-dnl [  --enable-pcspeak           Enable pcspeak support])
+PHP_ARG_ENABLE(pcspeak, whether to enable pcspeak support,
+[  --enable-pcspeak           Enable pcspeak support])
 
 if test "$PHP_PCSPEAK" != "no"; then
   dnl Write more examples of tests here...
