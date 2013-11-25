@@ -40,7 +40,6 @@ extern zend_module_entry pcspeak_module_entry;
 
 ZEND_BEGIN_MODULE_GLOBALS(pcspeak)
 	int device;
-	float frequency;
 ZEND_END_MODULE_GLOBALS(pcspeak)
 
 /* In every utility function you add that needs to use variables

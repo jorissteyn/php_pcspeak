@@ -1,20 +1,26 @@
-/*
-  +----------------------------------------------------------------------+
-  | PHP Version 5                                                        |
-  +----------------------------------------------------------------------+
-  | Copyright (c) 1997-2013 The PHP Group                                |
-  +----------------------------------------------------------------------+
-  | This source file is subject to version 3.01 of the PHP license,      |
-  | that is bundled with this package in the file LICENSE, and is        |
-  | available through the world-wide-web at the following url:           |
-  | http://www.php.net/license/3_01.txt                                  |
-  | If you did not receive a copy of the PHP license and are unable to   |
-  | obtain it through the world-wide-web, please send a note to          |
-  | license@php.net so we can mail you a copy immediately.               |
-  +----------------------------------------------------------------------+
-  | Author:                                                              |
-  +----------------------------------------------------------------------+
-*/
+/**
+ * Licensed under the MIT or GPL Version 2 licenses.
+ *
+ * Copyright (C) 2012 - 2013 by Joris Steyn
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 
 /* $Id$ */
 
@@ -22,17 +28,13 @@
 #include "config.h"
 #endif
 
-#include <linux/kd.h>
-#include <sys/ioctl.h>
-#include <fcntl.h>
-
 #include "php.h"
 #include "php_ini.h"
 #include "ext/standard/info.h"
 #include "php_pcspeak.h"
 
-/* Document SYS_CLOCK_RATE */
-#define SYS_CLOCK_RATE     1193180
+/* not a shared library */
+#include "libpcspeak.c"
 
 ZEND_DECLARE_MODULE_GLOBALS(pcspeak)
 
@@ -43,6 +45,8 @@ static int le_pcspeak;
  */
 PHP_MINIT_FUNCTION(pcspeak)
 {
+	REGISTER_LONG_CONSTANT("TEMP_X", 1, CONST_CS | CONST_PERSISTENT);
+
 	return SUCCESS;
 }
 /* }}} */
@@ -51,9 +55,7 @@ PHP_MINIT_FUNCTION(pcspeak)
  */
 PHP_MSHUTDOWN_FUNCTION(pcspeak)
 {
-	/* uncomment this line if you have INI entries
-	UNREGISTER_INI_ENTRIES();
-	*/
+	libpcspeak_close(PCSPEAK_G(device));
 	return SUCCESS;
 }
 /* }}} */
@@ -83,7 +85,7 @@ PHP_FUNCTION(pcspeak_open)
 	if (zend_parse_parameters(argc TSRMLS_CC, "s", &ttyname, &ttyname_length) != SUCCESS)
 		return;
 
-	if ((PCSPEAK_G(device) = open(ttyname, O_WRONLY)) == -1) {
+	if ((PCSPEAK_G(device) = libpcspeak_open(ttyname)) == -1) {
 	 	zend_error(E_ERROR, "Unable to open device for writing");
 		RETURN_FALSE;
 	}
@@ -97,7 +99,7 @@ PHP_FUNCTION(pcspeak_open)
 PHP_FUNCTION(pcspeak_close)
 {
 	if (PCSPEAK_G(device) != -1) {
-		close(PCSPEAK_G(device));
+		libpcspeak_close(PCSPEAK_G(device));
 	}
 }
 /* }}} */
@@ -106,12 +108,14 @@ PHP_FUNCTION(pcspeak_close)
    { */
 PHP_FUNCTION(pcspeak_sustain)
 {
-	float freq = PCSPEAK_G(frequency);
-	int dev = PCSPEAK_G(device);
+	int argc = ZEND_NUM_ARGS();
+	int note;
+	int octave;
 
-	int rounded_freq = (freq >= 0) ? (int)(freq + 0.5) : (int)(freq - 0.5);
+	if (zend_parse_parameters(argc TSRMLS_CC, "ll", &note, &octave) != SUCCESS)
+		return;
 
-	ioctl(dev, KIOCSOUND, SYS_CLOCK_RATE/rounded_freq);
+	libpcspeak_sustain(PCSPEAK_G(device), note, octave);
 }
 /* }}} */
 
@@ -119,38 +123,7 @@ PHP_FUNCTION(pcspeak_sustain)
    { */
 PHP_FUNCTION(pcspeak_release)
 {
-	int dev = PCSPEAK_G(device);
-
-	ioctl(dev, KIOCSOUND, 0);
-}
-/* }}} */
-
-/* {{{ proto void pcspeak_tune(int octave, int note)
-   { */
-PHP_FUNCTION(pcspeak_tune)
-{
-	int argc = ZEND_NUM_ARGS();
-	int octave;
-	int note;
-
-	if (zend_parse_parameters(argc TSRMLS_CC, "ll", &octave, &note) != SUCCESS)
-		return;
-
-	// calculate steps from A4 in 4th ocatave
-	int steps = note - 9;
-
-	// calculate steps for octaves < 4 >
-	steps = ((octave - 4) * 12) + steps;
-
-	// Define harmonic tuning ratio on equal tempered scale
-	// See http://www.phy.mtu.edu/~suits/scales.html
-	// float etr = 1;       // unison
-	float etr = 1.05946;   // minor
-	// float etr = 1.12246; // major
-	// float etr = 2;       // octave
-
-	// bias A4 to 440Hz
-	PCSPEAK_G(frequency) = 440 * powf(etr, steps);
+	libpcspeak_release(PCSPEAK_G(device));
 }
 /* }}} */
 
@@ -163,7 +136,6 @@ const zend_function_entry pcspeak_functions[] = {
 	PHP_FE(pcspeak_close, NULL)
 	PHP_FE(pcspeak_sustain, NULL)
 	PHP_FE(pcspeak_release, NULL)
-	PHP_FE(pcspeak_tune, NULL)
 	PHP_FE_END
 };
 /* }}} */
