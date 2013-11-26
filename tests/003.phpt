@@ -7,8 +7,7 @@ Tune, sustain, release
 var_dump(pcspeak_open("/dev/console"));
 for ($o=2; $o<7; $o++) {
     for ($i=1; $i<=7; $i++) {
-        pcspeak_tune($o, $i);
-        pcspeak_sustain();
+        pcspeak_sustain($i, $o);
         usleep(1000*300);
         pcspeak_release();
     }

@@ -16,6 +16,8 @@ int libpcspeak_open(char* ttyname)
 
 void libpcspeak_close(int device)
 {
+	libpcspeak_release(device);
+
 	if (device != -1) {
 		close(device);
 	}
