@@ -1,5 +1,5 @@
 # PHP PCSpeak
-This PHP extension exposes an API to control your PC speaker. Just for fun.
+This PHP extension exposes an API to control your PC speaker.
 
 # API Overview
 A console terminal device is used to access the hardware. Before you can use
@@ -32,11 +32,17 @@ pcspeak_release();
 By providing a "low level" sustain/release mechanism, it's possible to produce
 audible signals without blocking normal execution of the application.
 
+When finished, close the device:
+
+```php
+pcspeak_close();
+```
+
 # Demo
 The demo folder contains a music player, check it out!
 
 ```
-demo $ ./demo --device=/dev/console
+demo $ ./demo.php --device=/dev/console
 ```
 
 # Random thoughts and further reading
@@ -44,6 +50,6 @@ demo $ ./demo --device=/dev/console
 * make sure you have the pcspkr kernel module (or alternative) loaded
 * man console_ioctl
 * Physics of Music: http://www.phy.mtu.edu/~suits/scales.html
+* miditones.c was used to generate a byte stream of simplified midi events for the demo
 * https://code.google.com/p/miditones/
-* miditones.c is used to generate a byte stream of simplified midi events for the demo
 * use gcc -lbsd to compile miditones

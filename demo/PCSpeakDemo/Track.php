@@ -48,25 +48,29 @@ class Track
     }
 
     /**
-     * @return array<Event>
+     * @param int $position
+     * @return bool
      */
-    public function getEvents()
+    public function hasEvent($position)
     {
-        return $this->events;
+        return isset($this->events[$position]);
     }
 
     /**
-     * Calculate total duration of all events in seconds
-     *
-     * @return int
+     * @param int $position
+     * @return Event
+     */
+    public function getEvent($position)
+    {
+        return $this->events[$position];
+    }
+
+    /**
+     * @return Duration
      */
     public function getDuration()
     {
-        $duration = 0;
-        foreach ($this->getEvents() as $event) {
-            $duration += $event->getDelay();
-        }
-        return round($duration / 1000);
+        return new Duration($this->events);
     }
 
     /**
@@ -74,15 +78,11 @@ class Track
      */
     public function __toString()
     {
-        $duration = $this->getDuration();
-        $minutes = floor($duration / 60);
-        $seconds = $duration % 60;
-
         return sprintf(
-            '%-50s %-30s (%02d:%02d)',
+            '%-50s %-30s (%s)',
             $this->title,
             $this->artist,
-            $minutes, $seconds
+            $this->getDuration()
         );
     }
 }

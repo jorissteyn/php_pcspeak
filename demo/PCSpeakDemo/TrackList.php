@@ -10,7 +10,7 @@ class TrackList
     /**
      * @var array<Track>
      */
-    protected $tracks = array();
+    protected $tracks = [];
 
     /**
      * @param string $directory
@@ -42,6 +42,28 @@ class TrackList
     public function getTrack($index)
     {
         return $this->tracks[$index];
+    }
+
+    /**
+     * @return Track|null
+     */
+    public function prompt()
+    {
+        echo "\n";
+        echo $this;
+        echo "q) quit\n";
+
+        do {
+            readline_add_history(
+                $choice = readline('Make your choice>')
+            );
+
+            if (strtolower($choice) === 'q') {
+                return;
+            }
+        } while (!$this->hasTrack((int)$choice));
+
+        return $this->getTrack((int)$choice);
     }
 
     /**

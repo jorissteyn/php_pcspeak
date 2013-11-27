@@ -3,90 +3,99 @@
 namespace PCSpeakDemo;
 
 /**
- * Prompt user for track choice and play the track's events
- * using the pcspeak extension
+ * Contains state of currently playing track
  */
 class Player
 {
     /**
-     * @var TrackList
+     * @var Track
      */
-    protected $list;
+    protected $track;
+
+    /**
+     * Position of current event
+     *
+     * @var int
+     */
+    protected $position = 0;
+
+    /**
+     * Time of next event in microseconds
+     *
+     * @var int
+     */
+    protected $delayUntil = 0;
 
     /**
      * @param TrackList $list
      * @param string $tty
      */
-    public function __construct(TrackList $list, $tty = null)
+    public function __construct(Track $track)
     {
-        $this->list = $list;
-
-        // If no tty device is specified, use the one from the current session.
-        if (empty($tty)) {
-            $tty = trim(`tty`);
-        }
-
-        pcspeak_open($tty);
+        $this->track = $track;
     }
 
     /**
-     * Close the device
+     * Update the speaker state / play next event
      */
-    public function __destruct()
+    public function play()
     {
-        pcspeak_close();
+        if ($this->isPlaying() && $this->isDelaying()) {
+            $event = $this->getCurrentEvent();
+            if ($event->isNoteOn()) {
+                pcspeak_sustain($event->getNote(), $event->getOctave());
+            } elseif ($event->isNoteOff()) {
+                pcspeak_release();
+            } elseif ($event->isDelay()) {
+                $microDelay = $event->getDelay() / 1000;
+                $this->delayUntil = microtime(true) + $microDelay;
+            }
+
+            if ($event->isEnd()) {
+                $this->position = null;
+            } else {
+                $this->position++;
+            }
+        }
     }
 
     /**
-     * Prompt for track choice and play it
+     * @return bool
      */
-    public function start()
+    public function isPlaying()
     {
-        do {
-            pcspeak_release();
-
-            echo $this->list;
-            echo "q) quit\n";
-
-            readline_add_history(
-                $choice = (int)readline('Make your choice>')
-            );
-
-            if (strtolower($choice) === 'q') {
-                break;
-            }
-
-            if (!$this->list->hasTrack($choice)) {
-                continue;
-            }
-
-            $track = $this->list->getTrack($choice);
-
-            foreach ($track->getEvents() as $event) {
-                if ($event->isEnd()) {
-                    break;
-                }
-
-                $this->play($event);
-            }
-        } while (true);
+        return ($this->position !== null) &&
+               $this->track->hasEvent($this->position + 1);
     }
 
     /**
-     * @param Event $event
+     * @return bool
      */
-    public function play(Event $event)
+    public function isDelaying()
     {
-        if ($event->isNoteOn()) {
-            pcspeak_sustain($event->getNote(), $event->getOctave());
-        }
+        return microtime(true) > $this->delayUntil;
+    }
 
-        if ($event->isNoteOff()) {
-            pcspeak_release();
-        }
+    /**
+     * @return Event
+     */
+    public function getCurrentEvent()
+    {
+        return $this->track->getEvent($this->position);
+    }
 
-        if ($event->isDelay()) {
-            usleep($event->getDelay() * 1000);
-        }
+    /**
+     * @return string
+     */
+    public function __toString()
+    {
+        $duration = $this->track->getDuration();
+
+        return sprintf(
+            "\rPlaying '%s', elapsed %s, remaining %s",
+            $this->track->getTitle(),
+            $this->track->getDuration()->format(0, $this->position),
+            $this->track->getDuration()->format($this->position)
+        );
     }
 }

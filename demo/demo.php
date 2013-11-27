@@ -1,5 +1,6 @@
 #!/usr/bin/env php
 <?php
+declare(ticks=1);
 
 use PCSpeakDemo\Player;
 use PCSpeakDemo\TrackList;
@@ -24,7 +25,28 @@ HELP;
     exit;
 }
 
-$player = (new Player(
-    new TrackList(__DIR__ . '/tracks'),
-    (isset($options['device']) ? $options['device'] : null)
-))->start();
+$device = isset($options['device'])
+    ? $options['device']
+    : trim(`tty`);
+
+$trackList = new TrackList(__DIR__ . '/tracks');
+
+pcspeak_open($device);
+
+while ($track = $trackList->prompt()) {
+    $player = new Player($track);
+
+    register_tick_function([$player, 'play']);
+
+    while ($player->isPlaying()) {
+        // arbitrary sleep, track is playing in background
+        usleep(1e4);
+
+        // update player status
+        echo $player;
+    }
+
+    unregister_tick_function([$player, 'play']);
+}
+
+pcspeak_close();
